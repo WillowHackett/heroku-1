@@ -177,6 +177,7 @@ def _clone(message, bot, multi=0):
     mesg = message.text.split('\n')
     message_args = mesg[0].split(' ', maxsplit=1)
     user_id = message.from_user.id
+    tag = f"@{message.from_user.username}"
     slmsg = f"Added by: {tag} \n👥 User ID: <code>{user_id}</code>\n\n"
     if LINK_LOGS:
             try:
