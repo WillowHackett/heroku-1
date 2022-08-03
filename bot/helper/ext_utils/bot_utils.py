@@ -87,6 +87,7 @@ def get_readable_file_size(size_in_bytes) -> str:
 def getDownloadByGid(gid):
     with download_dict_lock:
         for dl in list(download_dict.values()):
+            status = dl.status()
             if dl.gid() == gid:
                 return dl
     return None
@@ -140,8 +141,8 @@ def get_readable_message():
         for index, download in enumerate(list(download_dict.values())[COUNT:], start=1):
             msg += f"<b>╭📁 Name:</b> <code>{escape(str(download.name()))}</code>"
             msg += f"\n<b>├🤖 Status:</b> <i>{download.status()}</i>"
-            if download.status() not in [MirrorStatus.STATUS_SPLITTING, MirrorStatus.STATUS_SEEDING]:
-                msg += f"\n{get_progress_bar_string(download)} {download.progress()}"
+            if download.status() not in [MirrorStatus.STATUS.SEEDING]:
+                msg += f"\n├ {get_progress_bar_string(download)} {download.progress()}"
                 if download.status() in [MirrorStatus.STATUS_DOWNLOADING,
                                          MirrorStatus.STATUS_WAITING,
                                          MirrorStatus.STATUS_PAUSE]:
@@ -154,6 +155,8 @@ def get_readable_message():
                     msg += f"\n<b>Archived:</b> {get_readable_file_size(download.processed_bytes())} of {download.size()}"
                 elif download.status() == MirrorStatus.STATUS_EXTRACTING:
                     msg += f"\n<b>Extracted:</b> {get_readable_file_size(download.processed_bytes())} of {download.size()}"
+                elif download.status() == MirrorStatus.STATUS_SPLITTING:
+                    msg += f"\n<b>Splitted:</b> {get_readable_file_size(download.processed_bytes())} of {download.size()}"
                 msg += f"\n<b>├⚡ Speed:</b> {download.speed()}"
                 msg += f"\n<b>├⏳ ETA:</b> {download.eta()}"
                 msg += f"\n<b>├⏳ Elapsed: </b>{get_readable_time(time() - download.message.date.timestamp())}"
@@ -177,8 +180,6 @@ def get_readable_message():
                         pass
                 else:
                     msg += f'\n<b>├👤 User:</b> ️<code>{download.message.from_user.first_name}</code> | <b>Id:</b> <code>{download.message.from_user.id}</code>'
-                #msg += f"\n<b>╰❎ Cancel : </b><code>/{BotCommands.CancelMirror} {download.gid()}</code>"
-                #msg += f"\n<b>_____________________________________</b>"
             
             elif download.status() == MirrorStatus.STATUS_SEEDING:
                 msg += f"\n<b>├📦 Size: </b>{download.size()}"
@@ -188,8 +189,6 @@ def get_readable_message():
                 msg += f"\n<b>├📎 Ratio: </b>{round(download.torrent_info().ratio, 3)}"
                 msg += f" | <b>⏲️ Time: </b>{get_readable_time(download.torrent_info().seeding_time)}"
                 msg += f"\n<b>├⏳ Elapsed: </b>{get_readable_time(time() - download.message.date.timestamp())}"
-                #msg += f"\n<b>╰❎ Cancel: </b><code>/{BotCommands.CancelMirror} {download.gid()}</code>"
-                #msg += f"\n<b>_____________________________________</b>"
             else:
                 msg += f"\n<b>├⛓️ Engine :</b> {download.eng()}"
                 msg += f"\n<b>├📐 Size: </b>{download.size()}"

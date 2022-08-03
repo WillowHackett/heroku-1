@@ -2,7 +2,7 @@ from random import SystemRandom
 from string import ascii_letters, digits
 from telegram.ext import CommandHandler
 from threading import Thread
-from time import sleep
+from time import time, sleep
 
 from bot.helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 from bot.helper.telegram_helper.message_utils import sendMessage, sendMarkup, deleteMessage, delete_all_messages, update_all_messages, sendStatusMessage, auto_delete_upload_message
@@ -10,8 +10,8 @@ from bot.helper.telegram_helper.filters import CustomFilters
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.mirror_utils.status_utils.clone_status import CloneStatus
 from bot import dispatcher, LOGGER, CLONE_LIMIT, STOP_DUPLICATE, download_dict, download_dict_lock, Interval, BOT_PM, MIRROR_LOGS, AUTO_DELETE_UPLOAD_MESSAGE_DURATION, CLONE_ENABLED, LINK_LOGS
-from bot.helper.ext_utils.bot_utils import *
-from bot.helper.mirror_utils.download_utils.direct_link_generator import *
+from bot.helper.ext_utils.bot_utils import get_readable_file_size, is_gdrive_link, is_gdtot_link, new_thread, is_appdrive_link
+from bot.helper.mirror_utils.download_utils.direct_link_generator import gdtot, appdrive
 from bot.helper.ext_utils.exceptions import DirectDownloadLinkException
 from telegram import InlineKeyboardMarkup, ParseMode
 from bot.helper.telegram_helper.button_build import ButtonMaker
@@ -62,9 +62,11 @@ def _clone(message, bot, multi=0):
         b_uname = bot_d.username	
         botstart = f"http://t.me/{b_uname}"	
         buttons.buildbutton("View file in PM", f"{botstart}")
+    
     args = message.text.split()
     reply_to = message.reply_to_message
     link = ''
+    
     if len(args) > 1:
         link = args[1].strip()
         if link.strip().isdigit():
@@ -74,7 +76,7 @@ def _clone(message, bot, multi=0):
             tag = f"@{message.from_user.username}"
         else:
             tag = message.from_user.mention_html(message.from_user.first_name)
-    if reply_to is not None:
+    if reply_to:
         if len(link) == 0:
             link = reply_to.text.split(maxsplit=1)[0].strip()
         if reply_to.from_user.username:

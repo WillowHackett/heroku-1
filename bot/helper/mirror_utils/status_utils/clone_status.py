@@ -6,6 +6,7 @@ class CloneStatus:
         self.__obj = obj
         self.__size = size
         self.__gid = gid
+        self.message = message
 
     def processed_bytes(self):
         return self.__obj.transferred_size
