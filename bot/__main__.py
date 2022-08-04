@@ -9,7 +9,7 @@ from telegram.ext import CommandHandler
 import requests
 import pytz
 from bot import bot, dispatcher, updater, botStartTime, TIMEZONE, IGNORE_PENDING_REQUESTS, LOGGER, Interval, INCOMPLETE_TASK_NOTIFIER, \
-                    DB_URI, alive, app, main_loop, HEROKU_API_KEY, HEROKU_APP_NAME, SET_BOT_COMMANDS, AUTHORIZED_CHATS
+                    DB_URI, alive, app, main_loop, HEROKU_API_KEY, HEROKU_APP_NAME, SET_BOT_COMMANDS, AUTHORIZED_CHATS, USER_SESSION_STRING, app_session
 from .helper.ext_utils.fs_utils import start_cleanup, clean_all, exit_clean_up
 from .helper.ext_utils.telegraph_helper import telegraph
 from .helper.ext_utils.bot_utils import get_readable_file_size, get_readable_time
@@ -20,7 +20,7 @@ from .helper.telegram_helper.filters import CustomFilters
 from .helper.telegram_helper.button_build import ButtonMaker
 from bot.modules.wayback import getRandomUserAgent
 from .modules import authorize, list, cancel_mirror, mirror_status, mirror, clone, watch, shell, eval, \
-                    delete, count, leech_settings, search, rss, wayback, speedtest, usage, anilist, qbselect, mediainfo, hash
+                    delete, count, leech_settings, search, rss, wayback, speedtest, usage, anilist, bt_select, mediainfo, hash, sleep
 from datetime import datetime
 
 try: import heroku3
@@ -219,6 +219,8 @@ help_string_telegraph_user = f'''
 <br><br>
 • <b>/{BotCommands.UnzipLeechCommand}</b> [download_url][magnet_link][torent_file]: Start leeching to Telegram and upload the file/folder extracted from any archive extension
 <br><br>
+• <b>/{BotCommands.BtSelectCommand}</b>: Reply to an active /cmd which was used to start the bt-download or add gid along with cmd. This command mainly for selection incase you decided to select files from already added torrent. But you can always use /cmd with arg `s` to select files before download start
+<br><br>
 • <b>/{BotCommands.QbLeechCommand}</b> [magnet_link][torrent_file][torrent_file_url]: Start leeching to Telegram using qBittorrent, Use <b>/{BotCommands.QbLeechCommand} s</b> to select files before leeching
 <br><br>
 • <b>/{BotCommands.QbZipLeechCommand}</b> [magnet_link][torrent_file][torrent_file_url]: Start leeching to Telegram using qBittorrent and upload the file/folder compressed with zip extension
@@ -267,7 +269,7 @@ help_string_telegraph_user = f'''
 <br><br>
 • <b>/{BotCommands.StatsCommand}</b>: Show Stats of the machine the bot is hosted on
 <br><br>
-• <b>/{BotCommands.SpeedCommand}</b>: Speedtest of Heroku server
+• <b>/{BotCommands.SpeedCommand}</b>: Speedtest of server
 <br><br>
 • <b>/weebhelp</b>: Okatu helper
 '''
@@ -356,10 +358,9 @@ def main():
     if SET_BOT_COMMANDS:
         bot.set_my_commands(botcmds)
     start_cleanup()
-    notifier_dict = None
+    notifier_dict = False
     if INCOMPLETE_TASK_NOTIFIER and DB_URI is not None:
-        notifier_dict = DbManger().get_incomplete_tasks()
-        if notifier_dict:
+        if notifier_dict := DbManger().get_incomplete_tasks():
             for cid, data in notifier_dict.items():
                 if ospath.isfile(".restartmsg"):
                     with open(".restartmsg") as f:
@@ -424,5 +425,10 @@ def main():
 
 app.start()
 main()
+
+if USER_SESSION_STRING:
+    app_session.run()
+else:
+    pass
 
 main_loop.run_forever()

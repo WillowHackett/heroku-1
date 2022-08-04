@@ -22,10 +22,8 @@ class MyLogger:
     def debug(self, msg):
         # Hack to fix changing extension
         if not self.obj.is_playlist:
-            match = re_search(r'.Merger..Merging formats into..(.*?).$', msg) # To mkv
-            if not match:
-                match = re_search(r'.ExtractAudio..Destination..(.*?)$', msg) # To mp3
-            if match:
+            if match := re_search(r'.Merger..Merging formats into..(.*?).$', msg) or \
+                        re_search(r'.ExtractAudio..Destination..(.*?)$', msg):
                 LOGGER.info(msg)
                 newname = match.group(1)
                 newname = newname.rsplit("/", 1)[-1]
@@ -64,6 +62,7 @@ class YoutubeDLHelper:
                      'allow_multiple_video_streams': True,
                      'allow_multiple_audio_streams': True,
                      'trim_file_name': 200,
+                     'noprogress': True,
                      'ffmpeg_location': '/bin/new-api'}
 
     @property

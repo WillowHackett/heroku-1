@@ -12,7 +12,7 @@ from telegram import InlineKeyboardMarkup, ParseMode, InlineKeyboardButton
 
 from bot import bot, Interval, INDEX_URL, BUTTON_FOUR_NAME, BUTTON_FOUR_URL, BUTTON_FIVE_NAME, BUTTON_FIVE_URL, \
                 BUTTON_SIX_NAME, BUTTON_SIX_URL, VIEW_LINK, aria2, QB_SEED, dispatcher, DOWNLOAD_DIR, \
-                download_dict, download_dict_lock, TG_SPLIT_SIZE, LOGGER, MEGA_KEY, DB_URI, INCOMPLETE_TASK_NOTIFIER, \
+                download_dict, download_dict_lock, MAX_LEECH_SIZE, LOGGER, MEGA_KEY, DB_URI, INCOMPLETE_TASK_NOTIFIER, \
                 LEECH_LOG, BOT_PM, MIRROR_LOGS, SOURCE_LINK, AUTO_DELETE_UPLOAD_MESSAGE_DURATION, \
                 MIRROR_ENABLED, LEECH_ENABLED, WATCH_ENABLED, CLONE_ENABLED, LINK_LOGS
 from bot.helper.ext_utils.bot_utils import is_url, is_magnet, is_gdtot_link, is_mega_link, is_gdrive_link, get_content_type, get_readable_time
@@ -40,7 +40,7 @@ from bot.helper.ext_utils.db_handler import DbManger
 from bot.helper.ext_utils.telegraph_helper import telegraph
 
 class MirrorListener:
-    def __init__(self, bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, pswd=None, tag=None, seed=False):
+    def __init__(self, bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, pswd=None, tag=None, select=False, seed=False):
         self.bot = bot
         self.message = message
         self.uid = self.message.message_id
@@ -51,9 +51,12 @@ class MirrorListener:
         self.pswd = pswd
         self.tag = tag
         self.seed = any([seed, QB_SEED])
+        self.select = select
         self.isPrivate = self.message.chat.type in ['private', 'group']
         self.user_id = self.message.from_user.id	
         reply_to = self.message.reply_to_message
+        self.suproc = None
+
 
     def clean(self):
         try:
@@ -83,25 +86,25 @@ class MirrorListener:
             with download_dict_lock:
                 download_dict[self.uid] = ZipStatus(name, size, gid, self)
             if self.pswd is not None:
-                if self.isLeech and int(size) > TG_SPLIT_SIZE:
+                if self.isLeech and int(size) > MAX_LEECH_SIZE:
                     LOGGER.info(f'Zip: orig_path: {m_path}, zip_path: {path}.0*')
-                    self.arch_proc = Popen(["7z", f"-v{TG_SPLIT_SIZE}b", "a", "-mx=0", f"-p{self.pswd}", path, m_path])
+                    self.suproc = Popen(["7z", f"-v{MAX_LEECH_SIZE}b", "a", "-mx=0", f"-p{self.pswd}", path, m_path])
                 else:
                     LOGGER.info(f'Zip: orig_path: {m_path}, zip_path: {path}')
-                    self.arch_proc = Popen(["7z", "a", "-mx=0", f"-p{self.pswd}", path, m_path])
-            elif self.isLeech and int(size) > TG_SPLIT_SIZE:
+                    self.suproc = Popen(["7z", "a", "-mx=0", f"-p{self.pswd}", path, m_path])
+            elif self.isLeech and int(size) > MAX_LEECH_SIZE:
                 LOGGER.info(f'Zip: orig_path: {m_path}, zip_path: {path}.0*')
-                self.arch_proc = Popen(["7z", f"-v{TG_SPLIT_SIZE}b", "a", "-mx=0", path, m_path])
+                self.suproc = Popen(["7z", f"-v{MAX_LEECH_SIZE}b", "a", "-mx=0", path, m_path])
             else:
                 LOGGER.info(f'Zip: orig_path: {m_path}, zip_path: {path}')
-                self.arch_proc = Popen(["7z", "a", "-mx=0", path, m_path])
-            self.arch_proc.wait()
-            if self.arch_proc.returncode == -9:
+                self.suproc = Popen(["7z", "a", "-mx=0", path, m_path])
+            self.suproc.wait()
+            if self.suproc.returncode == -9:
                 return
-            elif self.arch_proc.returncode != 0:
+            elif self.suproc.returncode != 0:
                 LOGGER.error('An error occurred while zipping! Uploading anyway')
                 path = f'{DOWNLOAD_DIR}{self.uid}/{name}'
-            if self.arch_proc.returncode == 0 and (not self.isQbit or not self.seed or self.isLeech):
+            if self.suproc.returncode == 0 and (not self.isQbit or not self.seed or self.isLeech):
                 try:
                     rmtree(m_path)
                 except:
@@ -120,15 +123,15 @@ class MirrorListener:
                                or (file_.endswith(".rar") and not re_search(r'\.part\d+\.rar$', file_)):
                                 m_path = ospath.join(dirpath, file_)
                                 if self.pswd is not None:
-                                    self.ext_proc = Popen(["7z", "x", f"-p{self.pswd}", m_path, f"-o{dirpath}", "-aot"])
+                                    self.suproc = Popen(["7z", "x", f"-p{self.pswd}", m_path, f"-o{dirpath}", "-aot"])
                                 else:
-                                    self.ext_proc = Popen(["7z", "x", m_path, f"-o{dirpath}", "-aot"])
-                                self.ext_proc.wait()
-                                if self.ext_proc.returncode == -9:
+                                    self.suproc = Popen(["7z", "x", m_path, f"-o{dirpath}", "-aot"])
+                                self.suproc.wait()
+                                if self.suproc.returncode == -9:
                                     return
-                                elif self.ext_proc.returncode != 0:
+                                elif self.suproc.returncode != 0:
                                     LOGGER.error('Unable to extract archive splits! Uploading anyway')
-                        if self.ext_proc.returncode == 0:
+                        if self.suproc is not None and self.suproc.returncode == 0:
                             for file_ in files:
                                 if file_.endswith((".rar", ".zip", ".7z")) or \
                                     re_search(r'\.r\d+$|\.7z\.\d+$|\.z\d+$|\.zip\.\d+$', file_):
@@ -137,13 +140,13 @@ class MirrorListener:
                     path = f'{DOWNLOAD_DIR}{self.uid}/{name}'
                 else:
                     if self.pswd is not None:
-                        self.ext_proc = Popen(["bash", "pextract", m_path, self.pswd])
+                        self.suproc = Popen(["bash", "pextract", m_path, self.pswd])
                     else:
-                        self.ext_proc = Popen(["bash", "extract", m_path])
-                    self.ext_proc.wait()
-                    if self.ext_proc.returncode == -9:
+                        self.suproc = Popen(["bash", "extract", m_path])
+                    self.suproc.wait()
+                    if self.suproc.returncode == -9:
                         return
-                    elif self.ext_proc.returncode == 0:
+                    elif self.suproc.returncode == 0:
                         LOGGER.info(f"Extracted Path: {path}")
                         osremove(m_path)
                     else:
@@ -161,13 +164,13 @@ class MirrorListener:
                 for file_ in files:
                     f_path = ospath.join(dirpath, file_)
                     f_size = ospath.getsize(f_path)
-                    if int(f_size) > TG_SPLIT_SIZE:
+                    if int(f_size) > MAX_LEECH_SIZE:
                         if not checked:
                             checked = True
                             with download_dict_lock:
                                 download_dict[self.uid] = SplitStatus(up_name, size, gid, self)
                             LOGGER.info(f"Splitting: {up_name}")
-                        res = split_file(f_path, f_size, file_, dirpath, TG_SPLIT_SIZE, self)
+                        res = split_file(f_path, f_size, file_, dirpath, MAX_LEECH_SIZE, self)
                         if not res:
                             return
                         osremove(f_path)
@@ -460,7 +463,7 @@ class MirrorListener:
         if not self.isPrivate and INCOMPLETE_TASK_NOTIFIER and DB_URI is not None:
             DbManger().rm_complete_task(self.message.link)
 
-def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, pswd=None, multi=0, qbsd=False):
+def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=False, pswd=None, multi=0, select=False, seed=False):
     buttons = ButtonMaker()	
     if BOT_PM and message.chat.type != 'private':
         try:
@@ -478,10 +481,13 @@ def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=Fals
                         f"From now on i will give link and leeched files in PM and log channel only"
             message = sendMarkup(startwarn, bot, message, InlineKeyboardMarkup(buttons.build_menu(2)))
             return
+    if message.chat.type == 'private' and len(LEECH_LOG) == 0 and isLeech and MAX_LEECH_SIZE == 4194304000:
+        text = f"Leech Log is Empty you Can't use bot in PM,\nYou Can use <i>/{BotCommands.AddleechlogCommand} chat_id </i> to add leech log."
+        sendMessage(text, bot, message)
+        return
     mesg = message.text.split('\n')
     message_args = mesg[0].split(maxsplit=1)
     name_args = mesg[0].split('|', maxsplit=1)
-    qbsel = False
     is_gdtot = False
     index = 1
     
@@ -489,10 +495,10 @@ def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=Fals
         link = message_args[1].strip()
         args = mesg[0].split(maxsplit=3)
         if "s" in [x.strip() for x in args]:
-            qbsel = True
+            select = True
             index += 1
         if "d" in [x.strip() for x in args]:
-            qbsd = True
+            seed = True
             index += 1
         message_args = mesg[0].split(maxsplit=index)
         if len(message_args) > index:
@@ -595,23 +601,23 @@ def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=Fals
                 if str(e).startswith('ERROR:'):
                     return sendMessage(str(e), bot, message)
 
-    listener = MirrorListener(bot, message, isZip, extract, isQbit, isLeech, pswd, tag, qbsd)
+    listener = MirrorListener(bot, message, isZip, extract, isQbit, isLeech, pswd, tag, select, seed)
 
     if is_gdrive_link(link):
         if not isZip and not extract and not isLeech:
             gmsg = f"Use /{BotCommands.CloneCommand} to clone Google Drive file/folder\n\n"
             gmsg += f"Use /{BotCommands.ZipMirrorCommand} to make zip of Google Drive folder\n\n"
-            gmsg += f"Use /{BotCommands.UnzipMirrorCommand} to extracts Google Drive archive file"
+            gmsg += f"Use /{BotCommands.UnzipMirrorCommand} to extracts Google Drive archive folder/file"
             sendMessage(gmsg, bot, message)
         else:
-            Thread(target=add_gd_download, args=(link, listener, is_gdtot)).start()
+            Thread(target=add_gd_download, args=(link, listener, is_gdtot, name)).start()
     elif is_mega_link(link):
         if MEGA_KEY is not None:
             Thread(target=MegaDownloader(listener).add_download, args=(link, f'{DOWNLOAD_DIR}{listener.uid}/')).start()
         else:
             sendMessage('MEGA_API_KEY not Provided!', bot, message)
     elif isQbit:
-        Thread(target=QbDownloader(listener).add_qb_torrent, args=(link, f'{DOWNLOAD_DIR}{listener.uid}', qbsel)).start()
+        Thread(target=QbDownloader(listener).add_qb_torrent, args=(link, f'{DOWNLOAD_DIR}{listener.uid}', select)).start()
     else:
         if len(mesg) > 1:
             try:
@@ -626,7 +632,7 @@ def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=Fals
             auth = "Basic " + b64encode(auth.encode()).decode('ascii')
         else:
             auth = ''
-        Thread(target=add_aria2c_download, args=(link, f'{DOWNLOAD_DIR}{listener.uid}', listener, name, auth)).start()
+        Thread(target=add_aria2c_download, args=(link, f'{DOWNLOAD_DIR}{listener.uid}', listener, name, auth, select)).start()
 
     if multi > 1:
         sleep(4)
@@ -638,7 +644,7 @@ def _mirror(bot, message, isZip=False, extract=False, isQbit=False, isLeech=Fals
         nextmsg.from_user.id = message.from_user.id
         multi -= 1
         sleep(4)
-        Thread(target=_mirror, args=(bot, nextmsg, isZip, extract, isQbit, isLeech, pswd, multi)).start()
+        Thread(target=_mirror, args=(bot, nextmsg, isZip, extract, isQbit, isLeech, pswd, multi, select, seed)).start()
 
 
 def mirror(update, context):

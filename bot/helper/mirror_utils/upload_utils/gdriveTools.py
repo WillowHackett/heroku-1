@@ -394,9 +394,9 @@ class GoogleDriveHelper:
                 LOGGER.info(f"Total Attempts: {err.last_attempt.attempt_number}")
                 err = err.last_attempt.exception()
             err = str(err).replace('>', '').replace('<', '')
-            if "User rate limit exceeded" in str(err):
+            if "User rate limit exceeded" in err:
                 msg = "User rate limit exceeded."
-            elif "File not found" in str(err):
+            elif "File not found" in err:
                 token_service = self.__alt_authorize()
                 if token_service is not None:
                     self.__service = token_service
@@ -497,7 +497,7 @@ class GoogleDriveHelper:
             str = str.replace(char, '\\' + char)
         return str.strip()
 
-    def __get_recursive_list(self, file, rootid = "root"):
+    def __get_recursive_list(self, file, rootid):
         rtnlist = []
         if not rootid:
             rootid = file.get('teamDriveId')
@@ -721,7 +721,7 @@ class GoogleDriveHelper:
                 LOGGER.info(f"Total Attempts: {err.last_attempt.attempt_number}")
                 err = err.last_attempt.exception()
             err = str(err).replace('>', '').replace('<', '')
-            if "File not found" in str(err):
+            if "File not found" in err:
                 token_service = self.__alt_authorize()
                 if token_service is not None:
                     self.__service = token_service
@@ -777,7 +777,7 @@ class GoogleDriveHelper:
                 LOGGER.info(f"Total Attempts: {err.last_attempt.attempt_number}")
                 err = err.last_attempt.exception()
             err = str(err).replace('>', '').replace('<', '')
-            if "File not found" in str(err):
+            if "File not found" in err:
                 token_service = self.__alt_authorize()
                 if token_service is not None:
                     self.__service = token_service
@@ -796,18 +796,18 @@ class GoogleDriveHelper:
             meta = self.__getFileMetadata(file_id)
             path = f"{DOWNLOAD_DIR}{self.__listener.uid}/"
             if meta.get("mimeType") == self.__G_DRIVE_DIR_MIME_TYPE:
-                self.__download_folder(file_id, path, meta.get('name'))
+                self.__download_folder(file_id, path, self.name)
             else:
                 makedirs(path)
-                self.__download_file(file_id, path, meta.get('name'), meta.get('mimeType'))
+                self.__download_file(file_id, path, self.name, meta.get('mimeType'))
         except Exception as err:
             if isinstance(err, RetryError):
                 LOGGER.info(f"Total Attempts: {err.last_attempt.attempt_number}")
                 err = err.last_attempt.exception()
             err = str(err).replace('>', '').replace('<', '')
-            if "downloadQuotaExceeded" in str(err):
+            if "downloadQuotaExceeded" in err:
                 err = "Download Quota Exceeded."
-            elif "File not found" in str(err):
+            elif "File not found" in err:
                 token_service = self.__alt_authorize()
                 if token_service is not None:
                     self.__service = token_service
@@ -856,7 +856,7 @@ class GoogleDriveHelper:
             filename = filename[:245] + ext
             if self.name.endswith(ext):
                 self.name = filename
-        fh = FileIO('{}{}'.format(path, filename), 'wb')
+        fh = FileIO(f"{path}{filename}", 'wb')
         downloader = MediaIoBaseDownload(fh, request, chunksize=50 * 1024 * 1024)
         done = False
         while not done:
