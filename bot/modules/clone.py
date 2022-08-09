@@ -57,12 +57,7 @@ def _clone(message, bot, multi=0):
             message = sendMarkup(startwarn, bot, message, InlineKeyboardMarkup(buttons.build_menu(2)))
             Thread(target=auto_delete_message, args=(bot, message, message)).start()
             return
-    if BOT_PM:	
-        bot_d = bot.get_me()	
-        b_uname = bot_d.username	
-        botstart = f"http://t.me/{b_uname}"	
-        buttons.buildbutton("View file in PM", f"{botstart}")
-    
+
     args = message.text.split()
     reply_to = message.reply_to_message
     link = ''
@@ -162,7 +157,7 @@ def _clone(message, bot, multi=0):
         elif is_appdrive:
             if apdict.get('link_type') == 'login':
                 LOGGER.info(f"Deleting: {link}")
-                gd.deletefile(link)   
+                gd.deleteFile(link)   
         if MIRROR_LOGS:
             try:
                 for chatid in MIRROR_LOGS:
@@ -176,6 +171,7 @@ def _clone(message, bot, multi=0):
             except Exception as e:
                 LOGGER.warning(e)
                 return
+    gd.deleteFile(link)
     mesg = message.text.split('\n')
     message_args = mesg[0].split(' ', maxsplit=1)
     user_id = message.from_user.id
