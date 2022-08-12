@@ -21,7 +21,6 @@ heroku3
 lk21
 lxml
 megasdkrestclient
-mediainfo
 pillow
 psutil
 psycopg2-binary
